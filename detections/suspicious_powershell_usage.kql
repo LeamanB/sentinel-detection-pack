@@ -1,0 +1,13 @@
+// Suspicious PowerShell Usage
+// Detects PowerShell execution with encoded commands, bypass flags, or suspicious parents.
+
+let lookback = 24h;
+SecurityEvent
+| where TimeGenerated >= ago(lookback)
+| where EventID == 4688
+| extend CommandLine = tostring(CommandLine), Parent = tostring(ParentProcessName)
+| where CommandLine has_any ("-enc", "-encodedcommand", "-nop", "-noprofile", "-windowstyle hidden", "-ep bypass")
+   or CommandLine contains "FromBase64String"
+   or CommandLine contains "Invoke-WebRequest"
+   or Parent has_any ("winword.exe","excel.exe","outlook.exe","wscript.exe","cscript.exe","mshta.exe")
+| project TimeGenerated, Computer, CommandLine, Parent

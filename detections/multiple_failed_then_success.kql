@@ -1,0 +1,15 @@
+// Multiple Failed Logons Followed by Success
+// Detects brute-force attempts where repeated failures are followed by a successful login.
+
+let lookback = 24h;
+let failWindow = 15m;
+let successFollow = 10m;
+let minFailures = 5;
+
+SigninLogs
+| where TimeGenerated >= ago(lookback)
+| extend UPN = UserPrincipalName, IP = IPAddress, IsSuccess = Status.errorCode == 0
+| summarize Fails = countif(IsSuccess == false), LastFail = maxif(TimeGenerated, IsSuccess == false), SuccessTime = maxif(TimeGenerated, IsSuccess == true)
+  by UPN, IP, bin(TimeGenerated, failWindow)
+| where Fails >= minFailures and SuccessTime between (LastFail .. LastFail + successFollow)
+| project UPN, IP, Fails, LastFail, SuccessTime

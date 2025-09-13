@@ -1,0 +1,21 @@
+// Impossible Travel Logins
+// Detects authentications from geographically distant locations within a short time window.
+
+let lookback = 24h;
+let window = 90m;
+let min_km = 500.0;
+
+SigninLogs
+| where TimeGenerated >= ago(lookback)
+| extend UPN = UserPrincipalName, IP = IPAddress, Country = tostring(LocationDetails.countryOrRegion),
+         Lat = todouble(LocationDetails.geoCoordinates.latitude),
+         Lon = todouble(LocationDetails.geoCoordinates.longitude)
+| where isnotempty(UPN) and isnotempty(IP) and isnotempty(Country)
+| order by UPN asc, TimeGenerated asc
+| serialize
+| extend NextTime = next(TimeGenerated), NextCountry = next(Country), NextLat = next(Lat), NextLon = next(Lon), NextUPN = next(UPN)
+| where UPN == NextUPN
+| where NextTime between (TimeGenerated .. TimeGenerated + window)
+| extend DistanceKm = geo_distance_2points(Lat, Lon, NextLat, NextLon) / 1000.0
+| where DistanceKm >= min_km or Country != NextCountry
+| project TimeGenerated, UPN, IP, Country, NextTime, NextCountry, DistanceKm
